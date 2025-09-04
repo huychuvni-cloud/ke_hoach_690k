@@ -142,14 +142,10 @@
         const BB_BONUS_RATE = 0.20;
 
         const PERFORMANCE_BONUS_TABLE = [
-            { pv: 10000, rate: 0.21 },
-            { pv: 7000, rate: 0.18 },
-            { pv: 4000, rate: 0.15 },
-            { pv: 2400, rate: 0.12 },
-            { pv: 1200, rate: 0.09 },
-            { pv: 600, rate: 0.06 },
-            { pv: 200, rate: 0.03 },
-            { pv: 0, rate: 0.00 }
+            { pv: 10000, rate: 0.21 }, { pv: 7000, rate: 0.18 },
+            { pv: 4000, rate: 0.15 }, { pv: 2400, rate: 0.12 },
+            { pv: 1200, rate: 0.09 }, { pv: 600, rate: 0.06 },
+            { pv: 200, rate: 0.03 }, { pv: 0, rate: 0.00 }
         ];
 
         // 2. LỚP ĐỐI TƯỢNG NHÀ PHÂN PHỐI
@@ -158,13 +154,10 @@
                 this.ten = ten; this.pvCaNhan = pvCaNhan; this.pvKhachHang = pvKhachHang;
                 this.tuyenDuoi = [];
                 this.pvNhom = 0; this.bvNhom = 0; this.tyLeHHTT = 0.0;
-                this.hhCSI = 0;
-                this.hhThanhTich = 0; this.hhLanhDao = 0;
-                this.hhRuby = 0;
-                this.hhBF = 0;
-                this.hhBB = 0;
-                this.tongThuNhap = 0;
-                this.tongNppNhom = 0;
+                this.hhCSI = 0; this.hhThanhTich = 0; this.hhLanhDao = 0;
+                this.hhRuby = 0; this.hhBF = 0; this.hhBB = 0;
+                this.tongThuNhap = 0; this.tongNppNhom = 0;
+                this.bfStatus = 'not_qualified'; this.bbStatus = 'not_qualified';
             }
             themTuyenDuoi(npp) { this.tuyenDuoi.push(npp); }
         }
@@ -185,6 +178,7 @@
                 let pvNhomConLai = pvCaNhan + pvKhachHang;
                 let soNhanh21 = 0;
                 let downlineResult = null;
+                let grandchildResult = null;
 
                 if (depth < totalLevels) {
                     downlineResult = levelResults[depth + 1];
@@ -195,16 +189,17 @@
                         pvNhomConLai += SO_NGUOI_MOI_CAP * downlineResult.pvNhom;
                     }
                 }
+                if (depth < totalLevels - 1) {
+                    grandchildResult = levelResults[depth + 2];
+                }
 
                 const currentPvNhom = pvCaNhan + pvKhachHang + pvFromDownlines;
                 const currentBvNhom = currentPvNhom * BV_PER_PV;
                 const currentRate = getPerformanceBonusRate(currentPvNhom);
 
-                // --- TÍNH TOÁN CÁC LOẠI HOA HỒNG ---
                 let hhCSI = 0;
                 if (currentRate <= 0.09 && pvCaNhan >= 50) {
-                    const csiRate = 0.10 - currentRate;
-                    hhCSI = (pvKhachHang * BV_PER_PV) * csiRate;
+                    hhCSI = (pvKhachHang * BV_PER_PV) * (0.10 - currentRate);
                 }
 
                 const hhThanhTichCaNhan = (pvCaNhan + pvKhachHang) * BV_PER_PV * currentRate;
@@ -216,32 +211,47 @@
                 const hhThanhTich = hhThanhTichCaNhan + hhChenhLech;
 
                 let hhLanhDao = 0;
-                if (soNhanh21 > 0) {
-                    if (!(soNhanh21 === 1 && pvNhomConLai < 4000)) {
-                         hhLanhDao = soNhanh21 * levelResults[depth+1].bvNhom * LEADERSHIP_BONUS_RATE;
-                    }
+                if (soNhanh21 > 0 && !(soNhanh21 === 1 && pvNhomConLai < 4000)) {
+                    hhLanhDao = soNhanh21 * levelResults[depth + 1].bvNhom * LEADERSHIP_BONUS_RATE;
                 }
 
                 let hhRuby = 0;
-                if (currentRate >= 0.21 && pvNhomConLai >= 20000) {
+                if (pvNhomConLai >= 20000) {
                     hhRuby = pvNhomConLai * BV_PER_PV * RUBY_BONUS_RATE;
                 }
+                
+                let hhBF = 0; let hhBB = 0;
+                let bfStatus = 'not_qualified'; let bbStatus = 'not_qualified';
+                const hasCustomerPV = pvKhachHang >= 50;
 
-                let hhBF = 0;
-                if (currentRate >= 0.09 && currentRate < 0.12 && pvKhachHang >= 50) {
-                    if (downlineResult && downlineResult.tyLeHHTT >= 0.03) hhBF = hhThanhTich * BF_BONUS_RATE;
-                }
+                const structuralBFCondMet = currentRate >= 0.09 && downlineResult && downlineResult.tyLeHHTT >= 0.03 && grandchildResult && grandchildResult.tyLeHHTT >= 0.03;
+                const structuralBBCondMet = currentRate >= 0.15 && downlineResult && downlineResult.tyLeHHTT >= 0.06 && grandchildResult && grandchildResult.tyLeHHTT >= 0.06;
 
-                let hhBB = 0;
-                if (currentRate >= 0.15 && pvKhachHang >= 50) {
-                    if (downlineResult && downlineResult.tyLeHHTT >= 0.06) hhBB = hhThanhTich * BB_BONUS_RATE;
+                if (hasCustomerPV) {
+                    if (structuralBBCondMet) {
+                        hhBB = hhThanhTich * BB_BONUS_RATE;
+                        hhBF = hhThanhTich * BF_BONUS_RATE;
+                        bbStatus = 'qualified';
+                        bfStatus = 'qualified';
+                    } else if (structuralBFCondMet) {
+                        hhBF = hhThanhTich * BF_BONUS_RATE;
+                        bfStatus = 'qualified';
+                    }
+                } else {
+                    if (structuralBBCondMet) {
+                        bbStatus = 'missing_customer_pv';
+                        bfStatus = 'missing_customer_pv';
+                    } else if (structuralBFCondMet) {
+                        bfStatus = 'missing_customer_pv';
+                    }
                 }
 
                 const tongThuNhap = hhCSI + hhThanhTich + hhLanhDao + hhRuby + hhBF + hhBB;
 
                 levelResults[depth] = {
                     pvNhom: currentPvNhom, bvNhom: currentBvNhom, tyLeHHTT: currentRate,
-                    hhCSI, hhThanhTich, hhLanhDao, hhRuby, hhBF, hhBB, tongThuNhap
+                    hhCSI, hhThanhTich, hhLanhDao, hhRuby, hhBF, hhBB, tongThuNhap,
+                    bfStatus, bbStatus
                 };
             }
             return levelResults;
@@ -265,7 +275,7 @@
                 } else {
                     const parentLevelNum = currentLevel;
                     const parentIdentifier = rootNpp.ten.split(' - ')[1] || rootNpp.ten;
-                    childName = `F${parentLevelNum + 1} - ${parentIdentifier}${i + 1}`;
+                    childName = `F${parentLevelNum} - ${parentIdentifier}${i + 1}`;
                 }
 
                 const nppCon = new NhaPhanPhoi(childName, rootNpp.pvCaNhan, rootNpp.pvKhachHang);
@@ -297,6 +307,15 @@
             summaryContainer.innerHTML = summaryHTML;
         }
 
+        function getBonusHTML(bonusName, bonusValue, bonusStatus) {
+            let html = `<p class="pl-2">${bonusName}: <span class="float-right">${formatCurrency(bonusValue)}</span>`;
+            if (bonusStatus === 'missing_customer_pv') {
+                html += `<span class="text-xs text-yellow-500 float-right mr-1">(Cần 50 PV KH)</span>`;
+            }
+            html += `</p>`;
+            return html;
+        }
+        
         function renderTreeToHTML(npp, isRoot = false) {
             let childrenHTML = '';
             let toggleButtonHTML = '';
@@ -325,8 +344,8 @@
                         <p>HH Ruby: <span class="float-right">${formatCurrency(npp.hhRuby)}</span></p>
                         <hr class="my-1 border-gray-200 dark:border-gray-600">
                         <p class="font-semibold">Core Plus+:</p>
-                        <p class="pl-2">Thưởng Bronze Foundation: <span class="float-right">${formatCurrency(npp.hhBF)}</span></p>
-                        <p class="pl-2">Thưởng Bronze Builder: <span class="float-right">${formatCurrency(npp.hhBB)}</span></p>
+                        ${getBonusHTML('Thưởng Bronze Foundation', npp.hhBF, npp.bfStatus)}
+                        ${getBonusHTML('Thưởng Bronze Builder', npp.hhBB, npp.bbStatus)}
                         <hr class="my-1 border-gray-200 dark:border-gray-600">
                         <p class="font-bold">Tổng Thu Nhập: <span class="float-right text-green-600 dark:text-green-400">${formatCurrency(npp.tongThuNhap)}</span></p>
                     </div>
