@@ -137,8 +137,10 @@
         const SO_NGUOI_MOI_CAP = 5;
         const BV_PER_PV = 26800;
         const LEADERSHIP_BONUS_RATE = 0.06;
+        const RUBY_BONUS_RATE = 0.02;
+        const BF_BONUS_RATE = 0.15;
+        const BB_BONUS_RATE = 0.20;
 
-        // Bảng HHTT đã cập nhật
         const PERFORMANCE_BONUS_TABLE = [
             { pv: 10000, rate: 0.21 },
             { pv: 7000, rate: 0.18 },
@@ -158,6 +160,9 @@
                 this.pvNhom = 0; this.bvNhom = 0; this.tyLeHHTT = 0.0;
                 this.hhCSI = 0;
                 this.hhThanhTich = 0; this.hhLanhDao = 0;
+                this.hhRuby = 0;
+                this.hhBF = 0;
+                this.hhBB = 0;
                 this.tongThuNhap = 0;
                 this.tongNppNhom = 0;
             }
@@ -195,6 +200,7 @@
                 const currentBvNhom = currentPvNhom * BV_PER_PV;
                 const currentRate = getPerformanceBonusRate(currentPvNhom);
 
+                // --- TÍNH TOÁN CÁC LOẠI HOA HỒNG ---
                 let hhCSI = 0;
                 if (currentRate <= 0.09 && pvCaNhan >= 50) {
                     const csiRate = 0.10 - currentRate;
@@ -203,29 +209,39 @@
 
                 const hhThanhTichCaNhan = (pvCaNhan + pvKhachHang) * BV_PER_PV * currentRate;
                 let hhChenhLech = 0;
-                let hhLanhDao = 0;
-
-                if (downlineResult) {
-                    if (downlineResult.tyLeHHTT < 0.21) {
-                        const rateDiff = currentRate - downlineResult.tyLeHHTT;
-                        if (rateDiff > 0) {
-                            hhChenhLech = SO_NGUOI_MOI_CAP * rateDiff * downlineResult.bvNhom;
-                        }
-                    }
+                if (downlineResult && downlineResult.tyLeHHTT < 0.21) {
+                    const rateDiff = currentRate - downlineResult.tyLeHHTT;
+                    if (rateDiff > 0) hhChenhLech = SO_NGUOI_MOI_CAP * rateDiff * downlineResult.bvNhom;
                 }
-                
+                const hhThanhTich = hhThanhTichCaNhan + hhChenhLech;
+
+                let hhLanhDao = 0;
                 if (soNhanh21 > 0) {
-                    if (soNhanh21 >= 2 || (soNhanh21 >= 1 && pvNhomConLai >= 4000)) {
+                    if (!(soNhanh21 === 1 && pvNhomConLai < 4000)) {
                          hhLanhDao = soNhanh21 * levelResults[depth+1].bvNhom * LEADERSHIP_BONUS_RATE;
                     }
                 }
 
-                const hhThanhTich = hhThanhTichCaNhan + hhChenhLech;
-                const tongThuNhap = hhCSI + hhThanhTich + hhLanhDao;
+                let hhRuby = 0;
+                if (currentRate >= 0.21 && pvNhomConLai >= 20000) {
+                    hhRuby = pvNhomConLai * BV_PER_PV * RUBY_BONUS_RATE;
+                }
+
+                let hhBF = 0;
+                if (currentRate >= 0.09 && currentRate < 0.12 && pvKhachHang >= 50) {
+                    if (downlineResult && downlineResult.tyLeHHTT >= 0.03) hhBF = hhThanhTich * BF_BONUS_RATE;
+                }
+
+                let hhBB = 0;
+                if (currentRate >= 0.15 && pvKhachHang >= 50) {
+                    if (downlineResult && downlineResult.tyLeHHTT >= 0.06) hhBB = hhThanhTich * BB_BONUS_RATE;
+                }
+
+                const tongThuNhap = hhCSI + hhThanhTich + hhLanhDao + hhRuby + hhBF + hhBB;
 
                 levelResults[depth] = {
                     pvNhom: currentPvNhom, bvNhom: currentBvNhom, tyLeHHTT: currentRate,
-                    hhCSI, hhThanhTich, hhLanhDao, tongThuNhap
+                    hhCSI, hhThanhTich, hhLanhDao, hhRuby, hhBF, hhBB, tongThuNhap
                 };
             }
             return levelResults;
@@ -243,14 +259,13 @@
 
             const tenF1 = ["A", "B", "C", "D", "E"];
             for (let i = 0; i < SO_NGUOI_MOI_CAP; i++) {
-                // **CHANGE**: Cập nhật logic đặt tên
                 let childName = '';
-                if (currentLevel === 1) { // We are at "BẠN", creating F1s
+                if (currentLevel === 1) {
                     childName = `F1 - ${tenF1[i]}`;
-                } else { // We are at an F-level, creating the next F-level
-                    const parentIdentifier = rootNpp.ten.split(' - ')[1];
-                    const childLevelNum = currentLevel; // This is the F-level number for the parent
-                    childName = `F${childLevelNum + 1} - ${parentIdentifier}${i + 1}`;
+                } else {
+                    const parentLevelNum = currentLevel;
+                    const parentIdentifier = rootNpp.ten.split(' - ')[1] || rootNpp.ten;
+                    childName = `F${parentLevelNum + 1} - ${parentIdentifier}${i + 1}`;
                 }
 
                 const nppCon = new NhaPhanPhoi(childName, rootNpp.pvCaNhan, rootNpp.pvKhachHang);
@@ -292,7 +307,7 @@
             }
 
             const memberCard = `
-                <div class="member-card p-3 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm w-72 text-left">
+                <div class="member-card p-3 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm w-80 text-left">
                     ${toggleButtonHTML}
                     <h3 class="font-bold text-lg text-center ${npp.ten === 'BẠN' ? 'text-blue-500 dark:text-blue-400' : 'text-gray-900 dark:text-white'}">${npp.ten}</h3>
                     <div class="mt-2 text-sm space-y-1 text-gray-600 dark:text-gray-300 border-t border-gray-200 dark:border-gray-600 pt-2">
@@ -302,11 +317,16 @@
                             <span class="text-xs text-gray-500 float-right mr-2">(~${formatNumber(npp.pvNhom)} PV)</span>
                         </div>
                         <p><strong>Tổng NPP Nhóm:</strong> <span class="font-semibold float-right">${formatNumber(npp.tongNppNhom)}</span></p>
-                        <p><strong>HH Thành Tích:</strong> <span class="font-semibold float-right">${(npp.tyLeHHTT * 100).toFixed(0)}%</span></p>
+                        <p><strong>HHTT:</strong> <span class="font-semibold float-right">${(npp.tyLeHHTT * 100).toFixed(0)}%</span></p>
                         <hr class="my-1 border-gray-200 dark:border-gray-600">
-                        <p>HH Bán lẻ (CSI): <span class="float-right">${formatCurrency(npp.hhCSI)}</span></p>
+                        <p>HH CSI: <span class="float-right">${formatCurrency(npp.hhCSI)}</span></p>
                         <p>HH Thành Tích: <span class="float-right">${formatCurrency(npp.hhThanhTich)}</span></p>
                         <p>HH Lãnh Đạo: <span class="float-right">${formatCurrency(npp.hhLanhDao)}</span></p>
+                        <p>HH Ruby: <span class="float-right">${formatCurrency(npp.hhRuby)}</span></p>
+                        <hr class="my-1 border-gray-200 dark:border-gray-600">
+                        <p class="font-semibold">Core Plus+:</p>
+                        <p class="pl-2">Thưởng Bronze Foundation: <span class="float-right">${formatCurrency(npp.hhBF)}</span></p>
+                        <p class="pl-2">Thưởng Bronze Builder: <span class="float-right">${formatCurrency(npp.hhBB)}</span></p>
                         <hr class="my-1 border-gray-200 dark:border-gray-600">
                         <p class="font-bold">Tổng Thu Nhập: <span class="float-right text-green-600 dark:text-green-400">${formatCurrency(npp.tongThuNhap)}</span></p>
                     </div>
