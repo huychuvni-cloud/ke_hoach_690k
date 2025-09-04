@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mô Phỏng Kế Hoạch Kinh Doanh Amway</title>
+    <!-- Tích hợp Tailwind CSS để làm đẹp giao diện -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Tùy chỉnh font chữ */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* --- CSS CHO SƠ ĐỒ CÂY NẰM NGANG --- */
+        #result-container {
+            overflow-x: auto;
+            padding-bottom: 2em;
+            padding-top: 1em; /* Thêm padding ở trên để zoom không bị che */
+        }
+        .tree {
+            display: flex;
+            justify-content: center;
+            min-width: fit-content;
+            transition: transform 0.3s ease-in-out; /* Thêm hiệu ứng chuyển động mượt mà khi zoom */
+        }
+        .tree ul {
+            padding: 0; margin: 0; list-style-type: none;
+        }
+        .tree ul {
+            display: flex; position: relative;
+        }
+        .tree li {
+            display: flex; flex-direction: column; align-items: center;
+            position: relative; padding: 2em 0.5em 0 0.5em; text-align: center;
+        }
+
+        /* --- VẼ ĐƯỜNG KẺ NỐI --- */
+        .tree li::before, .tree li::after {
+            content: ''; position: absolute;
+            border-color: #9ca3af; /* gray-400 */
+            border-style: solid;
+            border-width: 0 0 0 1px;
+        }
+        .tree li::before {
+            top: 0; left: 50%; height: 2em;
+        }
+        .tree li::after {
+            top: 0; height: 0; width: 100%; border-width: 1px 0 0 0;
+        }
+        #tree-root > li::before, #tree-root > li::after { display: none; }
+        .tree li:first-child::after { left: 50%; width: 50%; }
+        .tree li:last-child::after { left: 0; width: 50%; }
+        .tree li:only-child::after { display: none; }
+
+        /* --- CSS CHO CHỨC NĂNG THU GỌN/MỞ RỘNG --- */
+        .children-list.collapsed {
+            display: none;
+        }
+        .toggle-btn {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.75rem;
+            cursor: pointer;
+            font-weight: bold;
+            font-family: monospace;
+            font-size: 1.25rem;
+            color: #6b7280; /* gray-500 */
+            user-select: none; /* prevent text selection */
+            z-index: 10;
+        }
+        .dark .toggle-btn {
+            color: #9ca3af; /* dark:gray-400 */
+        }
+        .toggle-btn:hover {
+            color: #1f2937; /* gray-800 */
+        }
+        .dark .toggle-btn:hover {
+            color: #f3f4f6; /* dark:gray-100 */
+        }
+        .member-card {
+            position: relative;
+        }
+
+    </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200 transition-colors duration-300">
+
+    <div class="container mx-auto p-4 md:p-8 max-w-7xl">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white">Mô Phỏng Kế Hoạch Kinh Doanh Amway</h1>
+            <p class="mt-2 text-gray-600 dark:text-gray-400">Công cụ giúp bạn dự phóng thu nhập dựa trên cấu trúc hệ thống.</p>
+        </header>
+
+        <!-- Khu vực nhập liệu -->
+        <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg mb-8 max-w-5xl mx-auto">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
+                <div class="md:col-span-1">
+                    <label for="personalCostInput" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Tiêu dùng cá nhân (NPP):</label>
+                    <input type="number" id="personalCostInput" value="690000" min="0" step="10000" class="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    <p id="personalPvDisplay" class="text-xs text-gray-500 dark:text-gray-400 mt-1 text-right"></p>
+                </div>
+                <div class="md:col-span-1">
+                    <label for="customerCostInput" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Tiêu dùng từ khách hàng (KHNPP):</label>
+                    <input type="number" id="customerCostInput" value="0" min="0" step="10000" class="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    <p id="customerPvDisplay" class="text-xs text-gray-500 dark:text-gray-400 mt-1 text-right"></p>
+                </div>
+                <div class="md:col-span-1">
+                    <label for="stepInput" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Số cấp NPP (F):</label>
+                    <input type="number" id="stepInput" value="3" min="1" max="8" class="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                </div>
+                <div class="md:col-span-1">
+                    <button id="simulateBtn" class="w-full px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-transform transform hover:scale-105">
+                        Tạo Sơ Đồ
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Khu vực hiển thị tóm tắt -->
+        <div id="summary-container" class="mb-8">
+            <!-- Bảng tóm tắt sẽ được chèn vào đây -->
+        </div>
+
+        <!-- Khu vực hiển thị kết quả -->
+        <div id="result-container" class="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-2xl shadow-lg min-h-[300px]">
+            <ul id="tree-root" class="tree">
+                <!-- Sơ đồ cây sẽ được chèn vào đây bởi JavaScript -->
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        // --- LOGIC JAVASCRIPT ĐÃ CẬP NHẬT VÀ TỐI ƯU HÓA ---
+
+        // 1. CẤU HÌNH BAN ĐẦU
+        const SO_NGUOI_MOI_CAP = 5;
+        const BV_PER_PV = 26800; // 1 PV = 26,800 BV
+        const RETAIL_PROFIT_MARGIN = 0.10;
+        const LEADERSHIP_BONUS_RATE = 0.06;
+
+        const PERFORMANCE_BONUS_TABLE = [
+            { pv: 10000, rate: 0.21 }, { pv: 7000, rate: 0.18 },
+            { pv: 4000, rate: 0.15 }, { pv: 2400, rate: 0.12 },
+            { pv: 1200, rate: 0.09 }, { pv: 600, rate: 0.06 },
+            { pv: 200, rate: 0.03 }, { pv: 0, rate: 0.00 }
+        ];
+
+        // 2. LỚP ĐỐI TƯỢNG NHÀ PHÂN PHỐI
+        class NhaPhanPhoi {
+            constructor(ten, pvCaNhan, pvKhachHang) {
+                this.ten = ten; this.pvCaNhan = pvCaNhan; this.pvKhachHang = pvKhachHang;
+                this.tuyenDuoi = [];
+                this.pvNhom = 0; this.bvNhom = 0; this.tyLeHHTT = 0.0;
+                this.hhBanLe = 0; this.hhThanhTich = 0; this.hhLanhDao = 0;
+                this.tongThuNhap = 0;
+            }
+            themTuyenDuoi(npp) { this.tuyenDuoi.push(npp); }
+        }
+
+        // 3. CÁC HÀM TIỆN ÍCH
+        function formatCurrency(value) { return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value); }
+        function formatNumber(value) { return new Intl.NumberFormat('vi-VN').format(value); }
+        function getPerformanceBonusRate(pv) {
+            for (const level of PERFORMANCE_BONUS_TABLE) { if (pv >= level.pv) return level.rate; }
+            return 0.0;
+        }
+
+        // 4. HÀM TÍNH TOÁN ĐÃ ĐƯỢC TỐI ƯU HÓA
+        function calculateSystemMathematically(maxDepth, pvCaNhan, pvKhachHang) {
+            let levelResults = {};
+            for (let depth = maxDepth; depth >= 1; depth--) {
+                let pvFromDownlines = 0;
+                let downlineResult = null;
+                if (depth < maxDepth) {
+                    downlineResult = levelResults[depth + 1];
+                    pvFromDownlines = SO_NGUOI_MOI_CAP * downlineResult.pvNhom;
+                }
+                const currentPvNhom = pvCaNhan + pvKhachHang + pvFromDownlines;
+                const currentBvNhom = currentPvNhom * BV_PER_PV;
+                const currentRate = getPerformanceBonusRate(currentPvNhom);
+                const hhBanLe = (pvKhachHang * BV_PER_PV) * RETAIL_PROFIT_MARGIN;
+                const hhThanhTichCaNhan = (pvCaNhan + pvKhachHang) * BV_PER_PV * currentRate;
+                let hhChenhLech = 0; let hhLanhDao = 0;
+                if (downlineResult) {
+                    if (downlineResult.tyLeHHTT >= 0.21) {
+                        hhLanhDao = SO_NGUOI_MOI_CAP * downlineResult.bvNhom * LEADERSHIP_BONUS_RATE;
+                    } else {
+                        const rateDiff = currentRate - downlineResult.tyLeHHTT;
+                        if (rateDiff > 0) { hhChenhLech = SO_NGUOI_MOI_CAP * rateDiff * downlineResult.bvNhom; }
+                    }
+                }
+                const hhThanhTich = hhThanhTichCaNhan + hhChenhLech;
+                const tongThuNhap = hhBanLe + hhThanhTich + hhLanhDao;
+                levelResults[depth] = { pvNhom: currentPvNhom, bvNhom: currentBvNhom, tyLeHHTT: currentRate, hhBanLe, hhThanhTich, hhLanhDao, tongThuNhap };
+            }
+            return levelResults;
+        }
+
+        // 5. CÁC HÀM XÂY DỰNG VÀ HIỂN THỊ
+        function buildAndRenderTree(rootNpp, levelResults, maxDepth, renderDepth, currentDepth = 1) {
+            const results = levelResults[currentDepth];
+            Object.assign(rootNpp, results);
+            if (currentDepth >= renderDepth || currentDepth >= maxDepth) return rootNpp;
+            const tenF1 = ["A", "B", "C", "D", "E"];
+            for (let i = 0; i < SO_NGUOI_MOI_CAP; i++) {
+                const tenCon = currentDepth === 1 ? tenF1[i] : `${rootNpp.ten}${i + 1}`;
+                const nppCon = new NhaPhanPhoi(tenCon, rootNpp.pvCaNhan, rootNpp.pvKhachHang);
+                rootNpp.themTuyenDuoi(buildAndRenderTree(nppCon, levelResults, maxDepth, renderDepth, currentDepth + 1));
+            }
+            return rootNpp;
+        }
+
+        function renderSummary(rootResult, maxDepth) {
+            let totalNpp = (Math.pow(SO_NGUOI_MOI_CAP, maxDepth) - 1) / (SO_NGUOI_MOI_CAP - 1) * SO_NGUOI_MOI_CAP + 1;
+             if (maxDepth === 0) totalNpp = 1;
+
+            const summaryHTML = `
+            <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">
+                <h2 class="text-xl font-bold text-center text-gray-900 dark:text-white mb-4">Kết Quả Kinh Doanh Của BẠN (Với ${maxDepth} Cấp)</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+                    <div>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">Tổng Thu Nhập</p>
+                        <p class="text-2xl font-bold text-green-600 dark:text-green-400">${formatCurrency(rootResult.tongThuNhap)}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">Tổng PV Nhóm</p>
+                        <p class="text-2xl font-bold text-blue-600 dark:text-blue-400">${formatNumber(rootResult.pvNhom)}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">Tổng NPP Hệ Thống</p>
+                        <p class="text-2xl font-bold text-gray-800 dark:text-gray-200">${formatNumber(totalNpp)}</p>
+                    </div>
+                </div>
+            </div>`;
+            summaryContainer.innerHTML = summaryHTML;
+        }
+
+        function renderTreeToHTML(npp, isRoot = false) {
+            let childrenHTML = '';
+            let toggleButtonHTML = '';
+            if (npp.tuyenDuoi.length > 0) {
+                const collapsedClass = isRoot ? '' : 'collapsed';
+                childrenHTML = `<ul class="children-list ${collapsedClass}">${npp.tuyenDuoi.map(child => renderTreeToHTML(child, false)).join('')}</ul>`;
+                toggleButtonHTML = `<span class="toggle-btn" role="button">${isRoot ? '(-)' : '(+)'}</span>`;
+            }
+
+            const memberCard = `
+                <div class="member-card p-3 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm w-72 text-left">
+                    ${toggleButtonHTML}
+                    <h3 class="font-bold text-lg text-center ${npp.ten === 'BẠN' ? 'text-blue-500 dark:text-blue-400' : 'text-gray-900 dark:text-white'}">${npp.ten}</h3>
+                    <div class="mt-2 text-sm space-y-1 text-gray-600 dark:text-gray-300 border-t border-gray-200 dark:border-gray-600 pt-2">
+                        <p><strong>PV Nhóm:</strong> <span class="font-semibold float-right">${formatNumber(npp.pvNhom)}</span></p>
+                        <p><strong>HH Thành Tích:</strong> <span class="font-semibold float-right">${(npp.tyLeHHTT * 100).toFixed(0)}%</span></p>
+                        <hr class="my-1 border-gray-200 dark:border-gray-600">
+                        <p>HH Bán lẻ: <span class="float-right">${formatCurrency(npp.hhBanLe)}</span></p>
+                        <p>HH Thành Tích: <span class="float-right">${formatCurrency(npp.hhThanhTich)}</span></p>
+                        <p>HH Lãnh Đạo: <span class="float-right">${formatCurrency(npp.hhLanhDao)}</span></p>
+                        <hr class="my-1 border-gray-200 dark:border-gray-600">
+                        <p class="font-bold">Tổng Thu Nhập: <span class="float-right text-green-600 dark:text-green-400">${formatCurrency(npp.tongThuNhap)}</span></p>
+                    </div>
+                </div>`;
+            return `<li>${memberCard}${childrenHTML}</li>`;
+        }
+
+        // 6. GẮN SỰ KIỆN VÀ CHẠY
+        const simulateBtn = document.getElementById('simulateBtn');
+        const stepInput = document.getElementById('stepInput');
+        const personalCostInput = document.getElementById('personalCostInput');
+        const customerCostInput = document.getElementById('customerCostInput');
+        const personalPvDisplay = document.getElementById('personalPvDisplay');
+        const customerPvDisplay = document.getElementById('customerPvDisplay');
+        const summaryContainer = document.getElementById('summary-container');
+        const treeRoot = document.getElementById('tree-root');
+        const resultContainer = document.getElementById('result-container');
+
+        function updatePvDisplay() {
+            const personalCost = parseInt(personalCostInput.value) || 0;
+            const customerCost = parseInt(customerCostInput.value) || 0;
+            const personalPV = Math.round(personalCost / BV_PER_PV);
+            const customerPV = Math.round(customerCost / BV_PER_PV);
+            personalPvDisplay.textContent = `(~${formatNumber(personalPV)} PV)`;
+            customerPvDisplay.textContent = `(~${formatNumber(customerPV)} PV)`;
+        }
+
+        function runSimulation() {
+            const buoc = parseInt(stepInput.value) || 1;
+            const personalCost = parseInt(personalCostInput.value) || 0;
+            const customerCost = parseInt(customerCostInput.value) || 0;
+            const pvCaNhan = Math.round(personalCost / BV_PER_PV);
+            const pvKhachHang = Math.round(customerCost / BV_PER_PV);
+
+            if (buoc < 1) { treeRoot.innerHTML = `<p class="text-center text-red-500">Vui lòng nhập số cấp hợp lệ.</p>`; return; }
+            
+            summaryContainer.innerHTML = '';
+            treeRoot.innerHTML = `<p class="text-center text-gray-500">Đang tính toán và vẽ sơ đồ...</p>`;
+            
+            setTimeout(() => {
+                const levelResults = calculateSystemMathematically(buoc, pvCaNhan, pvKhachHang);
+                renderSummary(levelResults[1], buoc);
+                const renderDepth = Math.min(buoc, 4); 
+                const rootDisplay = new NhaPhanPhoi("BẠN", pvCaNhan, pvKhachHang);
+                buildAndRenderTree(rootDisplay, levelResults, buoc, renderDepth);
+                treeRoot.innerHTML = renderTreeToHTML(rootDisplay, true);
+                
+                let scale = 1.0;
+                if (buoc === 4) scale = 0.85;
+                else if (buoc === 5) scale = 0.7;
+                else if (buoc >= 6) scale = 0.6;
+                treeRoot.style.transformOrigin = 'top center';
+                treeRoot.style.transform = `scale(${scale})`;
+            }, 50);
+        }
+
+        simulateBtn.addEventListener('click', runSimulation);
+        personalCostInput.addEventListener('input', updatePvDisplay);
+        customerCostInput.addEventListener('input', updatePvDisplay);
+        
+        resultContainer.addEventListener('click', (event) => {
+            const toggleBtn = event.target.closest('.toggle-btn');
+            if (toggleBtn) {
+                const memberCard = toggleBtn.closest('.member-card');
+                const childrenList = memberCard.nextElementSibling;
+                if (childrenList && childrenList.tagName === 'UL') {
+                    childrenList.classList.toggle('collapsed');
+                    toggleBtn.textContent = childrenList.classList.contains('collapsed') ? '(+)' : '(-)';
+                }
+            }
+        });
+
+        updatePvDisplay(); 
+        runSimulation();
+
+    </script>
+</body>
+</html>
+
